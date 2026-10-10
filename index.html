@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>نظام إدارة الديون - وفا نت</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',Tahoma,Verdana,sans-serif;}
+body{background:#f5f5f5;padding:20px;color:#333;font-size:16px;}
+.container{max-width:900px;margin:0 auto;background:white;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,0.1);padding:20px;}
+h1,h2{text-align:center;margin-bottom:20px;color:#2c3e50;}
+.search-box{width:100%;padding:12px;margin-bottom:20px;border:1px solid #ddd;border-radius:5px;font-size:16px;}
+.summary{display:flex;justify-content:space-between;margin-bottom:20px;background:#f8f9fa;padding:15px;border-radius:5px;flex-wrap:wrap;gap:10px;}
+.summary-item{text-align:center;flex:1;min-width:120px;}
+.summary-value{font-size:20px;font-weight:bold;color:#2c3e50;}
+.btn{padding:10px 15px;background:#3498db;color:white;border:none;border-radius:5px;cursor:pointer;font-size:16px;margin-bottom:10px;margin-left:5px;}
+.customer-list{list-style:none;padding:0;}
+.customer-item{display:flex;align-items:center;padding:15px;border-bottom:1px solid #eee;cursor:pointer;}
+.customer-item:hover{background:#f0f8ff;}
+.customer-name{font-weight:bold; flex-grow: 1;}
+.customer-balance{font-weight:bold;}
+.customer-detail{display:none;}
+.action-buttons{display:flex;justify-content:space-between;margin:20px 0;flex-wrap:wrap;}
+.btn-add{background:#27ae60;}
+.btn-pay{background:#e74c3c;}
+.transaction-form{background:#f8f9fa;padding:15px;border-radius:5px;margin-bottom:20px;display:none;}
+.form-group{margin-bottom:15px;}
+.form-group label{display:block;margin-bottom:5px;font-weight:bold;}
+.form-group input,.form-group textarea, .form-group select{width:100%;padding:10px;border:1px solid #ddd;border-radius:5px;}
+.transaction-list{margin-top:20px;}
+.transaction-item{padding:10px;border-bottom:1px solid #eee;background:#f8f9fa;margin-bottom:10px;border-radius:5px;display:flex;flex-direction:column;}
+.transaction-amount-debt{font-weight:bold;color:#e74c3c;}
+.transaction-amount-payment{font-weight:bold;color:#27ae60;}
+.back-btn{background:#95a5a6;margin-bottom:10px;}
+.edit-btn{background:#f39c12;color:white;border:none;padding:5px 8px;border-radius:5px;cursor:pointer;margin-right:5px;}
+.delete-btn{background:#e74c3c;color:white;border:none;padding:5px 8px;border-radius:5px;cursor:pointer;}
+.modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;}
+.modal{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:20px;border-radius:10px;z-index:1001;width:90%;max-width:480px;text-align:center;box-shadow:0 4px 15px rgba(0,0,0,0.2);}
+.cust-checkbox{width:20px; height:20px; margin-left:15px; cursor:pointer;}
+.warning-tag{background: #f39c12; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 10px;}
+.header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: #2c3e50; color: white; padding: 10px; border-radius: 5px; }
+.sidebar { height: 100%; width: 0; position: fixed; z-index: 2000; top: 0; right: 0; background-color: #fff; overflow-x: hidden; transition: 0.3s; padding-top: 60px; box-shadow: -2px 0 10px rgba(0,0,0,0.3); }
+.sidebar button, .sidebar .side-label { padding: 15px; text-decoration: none; font-size: 18px; color: #333; display: block; border: none; background: none; width: 100%; text-align: right; border-bottom: 1px solid #eee; cursor: pointer; }
+.sidebar .closebtn { position: absolute; top: 10px; left: 20px; font-size: 36px; cursor: pointer; color: #333; }
+.side-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1500; }
+.comparison-box { background: #eef2f3; padding: 10px; border-radius: 5px; margin-top: 10px; font-size: 14px; text-align: right; }
+</style>
+</head>
+<body>
+
+<div class="side-overlay" id="side-overlay" onclick="closeNav()"></div>
+<div id="mySidebar" class="sidebar">
+    <span class="closebtn" onclick="closeNav()">&times;</span>
+    <button onclick="openAddCustPage()">➕ إضافة زبون جديد</button>
+    <button onclick="openLateCustomersModal()" style="background:#e74c3c; color:white;">⚠️ الديون المتأخرة الخطرة (30+ يوم)</button>
+    <button onclick="openReportModal('payment')">📊 تقرير الدفعات (من - إلى)</button>
+    <button onclick="openReportModal('debt')">📉 تقرير الديون (من - إلى)</button>
+    <button onclick="openFinancialSummaryModal()" style="background:#16a085; color:white;">📈 إحصائيات ومقارنة الأرباح</button>
+    <button onclick="document.getElementById('backup-btn').click()">📤 إنشاء نسخة احتياطية</button>
+    <button onclick="document.getElementById('restore-btn').click()">📥 استعادة نسخة</button>
+    <button onclick="document.getElementById('export-all-btn').click()">📄 تصدير جميع الزبائن PDF</button>
+    <div class="side-label" style="background:#f8f9fa;">
+        <label style="cursor:pointer;"><input type="checkbox" id="select-all-side" style="width:18px; height:18px; vertical-align:middle;"> تحديد الكل للإرسال</label>
+        <button class="btn" onclick="document.getElementById('start-auto-sms').click()" style="background:#8e44ad; width:100%; margin-top:10px;">المتابع الآلي</button>
+    </div>
+    <button onclick="openTrashModal()" style="background:#7f8c8d; color:white; border-top: 2px solid #666;">🗑️ سجل المحذوفات الكامل</button>
+</div>
+
+<div class="modal-overlay" id="sms-overlay"></div>
+<div class="modal" id="sms-modal">
+    <h3 id="sms-status">إرسال الرسائل</h3>
+    <p id="sms-count">متبقي: 0</p>
+    <div style="background:#f8f9fa; padding:15px; margin:15px 0; border-radius:5px; font-weight:bold;" id="sms-current-name"></div>
+    <button class="btn btn-add" id="confirm-send-btn" style="width:100%; margin:0;">إرسال الآن</button>
+    <button class="btn back-btn" id="stop-sms-btn" style="width:100%; margin-top:10px;">إيقاف</button>
+</div>
+
+<!-- Modal سجل المحذوفات الكامل -->
+<div class="modal" id="trash-modal" style="max-width: 550px; width:95%; text-align:right;">
+    <h3 style="text-align:center; margin-bottom:10px; color:#7f8c8d;">سجل المحذوفات الكامل</h3>
+    <div id="trash-items-list" style="max-height: 300px; overflow-y: auto; border:1px solid #eee; padding:5px; border-radius:5px; margin-bottom:15px;"></div>
+    <button class="btn back-btn" onclick="document.getElementById('trash-modal').style.display='none'; document.getElementById('sms-overlay').style.display='none';" style="width:100%; margin:0;">إغلاق</button>
+</div>
+
+<!-- Modal الديون المتأخرة الخطرة -->
+<div class="modal" id="late-customers-modal" style="max-width: 500px; width:95%; text-align:right;">
+    <h3 style="text-align:center; margin-bottom:10px; color:#c0392b;">الديون المتأخرة (أكثر من 30 يوم)</h3>
+    <div id="late-total-box" style="background:#f8f9fa; padding:10px; border-radius:5px; font-weight:bold; text-align:center; margin-bottom:10px; color:#2c3e50;"></div>
+    <div id="late-items-list" style="max-height: 250px; overflow-y: auto; border:1px solid #eee; padding:5px; border-radius:5px; margin-bottom:10px;"></div>
+    <button class="btn" onclick="sendLateAlertsSMS()" style="width:100%; margin:0 0 10px 0; background:#e74c3c;">🚨 إرسال التذكير للجميع عبر SMS</button>
+    <button class="btn" onclick="downloadLatePDF()" style="width:100%; margin:0 0 10px 0; background:#e67e22;">📄 تصدير PDF</button>
+    <button class="btn back-btn" onclick="document.getElementById('late-customers-modal').style.display='none'; document.getElementById('sms-overlay').style.display='none';" style="width:100%; margin:0;">إغلاق</button>
+</div>
+
+<!-- Modal تقارير الفترة الزمنية -->
+<div class="modal" id="report-modal" style="max-width: 450px;">
+    <h3 id="report-title">تقرير الحركة</h3>
+    <div class="form-group" style="text-align:right; margin-top:10px;"><label>من تاريخ:</label><input type="date" id="report-from-date"></div>
+    <div class="form-group" style="text-align:right;"><label>إلى تاريخ:</label><input type="date" id="report-to-date"></div>
+    <button class="btn btn-add" onclick="generateReport()" style="width:100%; margin:0;">عرض السجل</button>
+    <button class="btn" onclick="downloadReportPDF()" style="width:100%; margin:10px 0 0 0; background:#e67e22;">📄 تنزيل كشف PDF</button>
+    <button class="btn back-btn" onclick="closeReportModal()" style="width:100%; margin-top:10px;">إغلاق</button>
+</div>
+
+<div class="modal" id="report-result-modal" style="max-width: 500px; width:95%; text-align:right;">
+    <h3 id="result-report-title" style="text-align:center; margin-bottom:10px;">نتائج السجل</h3>
+    <div id="report-total-box" style="background:#f8f9fa; padding:10px; border-radius:5px; font-weight:bold; text-align:center; margin-bottom:10px; color:#2c3e50;"></div>
+    <div id="report-items-list" style="max-height: 250px; overflow-y: auto; border:1px solid #eee; padding:5px; border-radius:5px; margin-bottom:10px;"></div>
+    <button class="btn" onclick="downloadReportPDF()" style="width:100%; margin:0 0 10px 0; background:#e67e22;">📄 تنزيل كشف PDF</button>
+    <button class="btn back-btn" onclick="document.getElementById('report-result-modal').style.display='none'; document.getElementById('sms-overlay').style.display='none';" style="width:100%; margin:0;">رجوع</button>
+</div>
+
+<!-- Modal إحصائيات ومقارنة الأرباح والتحصيلات -->
+<div class="modal" id="financial-summary-modal" style="max-width: 520px; width:95%; text-align:right;">
+    <h3 style="text-align:center; margin-bottom:15px; color:#16a085;">📈 إحصائيات ومقارنة الأداء المالي</h3>
+    
+    <div style="display:flex; gap:10px;">
+        <div class="form-group" style="flex:1;"><label>من تاريخ:</label><input type="date" id="fin-from-date"></div>
+        <div class="form-group" style="flex:1;"><label>إلى تاريخ:</label><input type="date" id="fin-to-date"></div>
+    </div>
+
+    <div class="form-group" style="background:#f1f8f6; padding:10px; border-radius:5px; border:1px dashed #16a085;">
+        <label style="color:#16a085; margin-bottom:5px;">مقارنة مع فترة سابقة (اختياري):</label>
+        <select id="compare-mode" onchange="toggleCompareMode()" style="margin-bottom:8px;">
+            <option value="none">بدون مقارنة</option>
+            <option value="prev_month">مقارنة مع الشهر السابق مباشرة</option>
+            <option value="custom_range">مقارنة مع فترة مخصصة أخرى</option>
+        </select>
+        <div id="custom-compare-box" style="display:none; gap:5px;">
+            <input type="date" id="comp-from-date" style="margin-bottom:5px;">
+            <input type="date" id="comp-to-date">
+        </div>
+    </div>
+
+    <button class="btn" onclick="calculateFinancialSummary()" style="width:100%; margin:0 0 15px 0; background:#16a085;">تحديث وعرض المقارنة</button>
+    
+    <div id="fin-results-box" style="background:#f8f9fa; padding:15px; border-radius:5px; margin-bottom:15px; text-align:right; font-size:15px; line-height:1.6; max-height:220px; overflow-y:auto;"></div>
+    
+    <button class="btn" onclick="downloadFinancialSummaryPDF()" style="width:100%; margin:0 0 10px 0; background:#e67e22;">📄 تصدير الإحصائيات PDF</button>
+    <button class="btn back-btn" onclick="document.getElementById('financial-summary-modal').style.display='none'; document.getElementById('sms-overlay').style.display='none';" style="width:100%; margin:0;">إغلاق</button>
+</div>
+
+<div class="container">
+<div id="main-page">
+<div class="header-top">
+    <div style="font-size:24px; cursor:pointer;" onclick="openNav()">☰</div>
+    <h1 style="margin-bottom:0; color:white; font-size:20px;">نظام إدارة الديون - وفا نت</h1>
+    <div></div>
+</div>
+
+<input type="text" id="search" class="search-box" placeholder="ابحث بالاسم أو برقم الهاتف...">
+<div class="summary">
+<div class="summary-item"><div>المبلغ الكلي</div><div class="summary-value" id="total-amount">0 شيكل</div></div>
+<div class="summary-item"><div>تحصيل اليوم</div><div class="summary-value" id="today-payments" style="color:#27ae60;">0 شيكل</div></div>
+<div class="summary-item"><div>تحصيل الأسبوع</div><div class="summary-value" id="weekly-payments" style="color:#2980b9;">0 شيكل</div></div>
+<div class="summary-item"><div>عدد الزبائن</div><div class="summary-value" id="total-customers">0</div></div>
+</div>
+
+<div style="display:none;">
+    <input type="checkbox" id="select-all-btn">
+    <button id="start-auto-sms"></button>
+    <button id="add-customer-btn"></button>
+    <button id="backup-btn"></button>
+    <button id="restore-btn"></button>
+    <button id="export-all-btn"></button>
+</div>
+
+<ul class="customer-list" id="customer-list"></ul>
+<input type="file" id="restore-file" style="display:none" accept=".json">
+
+</div>
+
+<div id="add-customer-form" class="customer-detail">
+<button class="btn back-btn" id="back-from-add-btn">← الرجوع</button>
+<h2>إضافة زبون جديد</h2>
+<div class="form-group"><label>اسم الزبون</label><input type="text" id="new-customer-name"></div>
+<div class="form-group"><label>رقم الهاتف</label><input type="text" id="new-customer-phone" placeholder="مثال: 059xxxxxxxx"></div>
+<div class="form-group"><label>الدين الابتدائي</label><input type="number" id="new-customer-initial"></div>
+<button class="btn" id="save-customer-btn">حفظ الزبون</button>
+</div>
+
+<div id="customer-detail" class="customer-detail">
+<button class="btn back-btn" id="back-btn-detail">← الرجوع</button>
+<h2 id="detail-customer-name">اسم الزبون</h2>
+<p>رقم الهاتف: <span id="detail-customer-phone"></span></p>
+<div class="summary">
+  <div class="summary-item"><div>الرصيد الحالي</div><div class="summary-value" id="detail-customer-balance">0 شيكل</div></div>
+</div>
+<div class="action-buttons">
+<button class="btn btn-add" id="add-debt-btn">إضافة دين</button>
+<button class="btn btn-pay" id="pay-debt-btn">سداد دين</button>
+<button class="btn btn-delete" id="delete-customer-btn">حذف الزبون</button>
+<button class="btn btn-add" id="edit-customer-btn">تعديل اسم/رقم الزبون</button>
+<button class="btn btn-light" id="sms-customer-btn">إرسال SMS بالرصيد</button>
+<button class="btn export-btn" id="export-customer-btn">تصدير كشف الزبون PDF</button>
+</div>
+<div id="add-debt-form" class="transaction-form">
+<h3>إضافة دين جديد</h3>
+<div class="form-group"><label>المبلغ (شيكل)</label><input type="number" id="debt-amount"></div>
+<div class="form-group"><label>ملاحظات</label><textarea id="debt-notes"></textarea></div>
+<button class="btn" id="save-debt-btn">حفظ</button>
+<button class="btn back-btn" id="cancel-debt-btn">إلغاء</button>
+</div>
+<div id="pay-debt-form" class="transaction-form">
+<h3>سداد دين</h3>
+<div class="form-group"><label>المبلغ (شيكل)</label><input type="number" id="payment-amount"></div>
+<div class="form-group"><label>ملاحظات</label><textarea id="payment-notes"></textarea></div>
+<button class="btn" id="save-payment-btn">حفظ</button>
+<button class="btn back-btn" id="cancel-payment-btn">إلغاء</button>
+</div>
+<div id="edit-customer-form" class="transaction-form">
+<h3>تعديل اسم ورقم الزبون</h3>
+<div class="form-group"><label>اسم الزبون</label><input type="text" id="edit-customer-name-field"></div>
+<div class="form-group"><label>رقم الهاتف</label><input type="text" id="edit-customer-phone-field"></div>
+<button class="btn" id="save-edit-customer-btn">حفظ التعديل</button>
+<button class="btn back-btn" id="cancel-edit-customer-btn">إلغاء</button>
+</div>
+<div id="transaction-list" class="transaction-list"></div>
+</div>
+</div>
+
+<script>
+let customers = JSON.parse(localStorage.getItem('debtCustomers')) || [];
+let deletedCustomers = JSON.parse(localStorage.getItem('deletedDebtCustomers')) || [];
+let deletedTransactions = JSON.parse(localStorage.getItem('deletedTransactionsList')) || [];
+let currentCustomerId = null;
+let smsQueue = [];
+let currentReportType = '';
+
+const mainPage = document.getElementById('main-page');
+const customerDetail = document.getElementById('customer-detail');
+const addCustomerForm = document.getElementById('add-customer-form');
+const transactionList = document.getElementById('transaction-list');
+const searchInput = document.getElementById('search');
+
+function openNav() { document.getElementById("mySidebar").style.width = "280px"; document.getElementById("side-overlay").style.display = "block"; }
+function closeNav() { document.getElementById("mySidebar").style.width = "0"; document.getElementById("side-overlay").style.display = "none"; }
+function openAddCustPage() { closeNav(); mainPage.style.display='none'; addCustomerForm.style.display='block'; }
+
+function autoTelegramBackup() {
+    const backupData = JSON.stringify(customers);
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-GB').replace(/\//g, '-');
+    const timeStr = now.getHours() + "-" + now.getMinutes();
+    const fileName = `WafaNet_AutoBackup_${dateStr}_${timeStr}.json`;
+    const blob = new Blob([backupData], {type: 'application/json'});
+
+    const botToken = "8756329793:AAFii2IgLXDzm6tQgzrG_P0ekjnoHRvy_U4";
+    const chatId = "6485768186";
+    
+    const formData = new FormData();
+    formData.append("chat_id", chatId);
+    formData.append("document", blob, fileName);
+    const captionText = `🔄 نسخة احتياطية صامتة تلقائية (وفا نت)\n📅 التاريخ: ${now.toLocaleDateString('ar-EG')}\n⏰ الوقت: ${now.toLocaleTimeString('ar-EG')}\n👥 عدد الزبائن: ${customers.length}\n💰 إجمالي الديون: ${document.getElementById('total-amount').textContent}`;
+    formData.append("caption", captionText);
+
+    fetch(`https://api.telegram.org/bot${botToken}/sendDocument`, { method: "POST", body: formData }).catch(err => {});
+}
+
+function saveData(){ 
+    localStorage.setItem('debtCustomers', JSON.stringify(customers));
+    localStorage.setItem('deletedDebtCustomers', JSON.stringify(deletedCustomers));
+    localStorage.setItem('deletedTransactionsList', JSON.stringify(deletedTransactions));
+    const lastBackup = localStorage.getItem('lastAutoBackup') || 0;
+    const nowTime = new Date().getTime();
+    if(nowTime - lastBackup > 3600000) {
+        autoTelegramBackup();
+        localStorage.setItem('lastAutoBackup', nowTime);
+    }
+}
+
+function openTrashModal() {
+    closeNav();
+    updateTrashUI();
+    document.getElementById('sms-overlay').style.display = 'block';
+    document.getElementById('trash-modal').style.display = 'block';
+}
+
+function updateTrashUI() {
+    const modalListDiv = document.getElementById('trash-items-list');
+    
+    let combinedHTML = '';
+    
+    if(deletedCustomers.length === 0 && deletedTransactions.length === 0) {
+        combinedHTML = '<div style="text-align:center; padding:10px; color:#7f8c8d; font-size:14px;">سلة المحذوفات فارغة.</div>';
+    } else {
+        if(deletedCustomers.length > 0) {
+            combinedHTML += `<div style="font-weight:bold; color:#2c3e50; margin-bottom:5px; font-size:14px; background:#eee; padding:4px; text-align:right;">👥 الزبائن المحذوفون بالكامل:</div>`;
+            deletedCustomers.forEach((c, index) => {
+                combinedHTML += `<div style="padding:8px; border-bottom:1px solid #eee; font-size:13px; display:flex; justify-content:space-between; align-items:center; text-align:right;"><div><b>${c.name}</b> (${c.phone || 'بدون رقم'}) - <span style="color:#e74c3c;">${c.balance} شيكل</span></div><div><button class="btn" style="padding:3px 7px; margin:0; background:#27ae60; font-size:12px;" onclick="restoreCustomer(${index})">استعادة</button> <button class="delete-btn" style="padding:3px 7px; font-size:12px;" onclick="permanentDeleteCustomer(${index})">حذف نهائي</button></div></div>`;
+            });
+        }
+        
+        if(deletedTransactions.length > 0) {
+            combinedHTML += `<div style="font-weight:bold; color:#2c3e50; margin-top:10px; margin-bottom:5px; font-size:14px; background:#eee; padding:4px; text-align:right;">💳 المعاملات المفردة المحذوفة:</div>`;
+            deletedTransactions.forEach((tx, index) => {
+                const color = tx.type === 'debt' ? '#e74c3c' : '#27ae60';
+                const typeName = tx.type === 'debt' ? 'دين' : 'دفعة';
+                combinedHTML += `<div style="padding:8px; border-bottom:1px solid #eee; font-size:13px; display:flex; justify-content:space-between; align-items:center; text-align:right;"><div>الزبون: <b>${tx.customerName}</b> | <span style="color:${color}; font-weight:bold;">${typeName}: ${tx.amount} شيكل</span><br><span style="font-size:11px; color:#666;">حذف في: ${tx.deletedDate}</span></div><div><button class="btn" style="padding:3px 7px; margin:0 0 0 5px; background:#27ae60; font-size:12px;" onclick="restoreTransaction(${index})">استعادة</button><button class="delete-btn" style="padding:3px 7px; font-size:12px; background:#c0392b;" onclick="permanentDeleteTx(${index})">حذف نهائي</button></div></div>`;
+            });
+        }
+    }
+    
+    if(modalListDiv) modalListDiv.innerHTML = combinedHTML;
+}
+
+function restoreCustomer(index) {
+    const customerToRestore = deletedCustomers[index];
+    if(!confirm(`⚠️ هل أنت متأكد من رغبتك في استعادة الزبون (${customerToRestore.name}) إلى القائمة النشطة؟`)) return;
+    
+    const restored = deletedCustomers.splice(index, 1)[0];
+    customers.push(restored);
+    saveData();
+    updateCustomerList();
+    updateTrashUI();
+}
+
+function restoreTransaction(index) {
+    const txToRestore = deletedTransactions[index];
+    if(!confirm(`⚠️ هل أنت متأكد من رغبتك في استعادة هذه المعاملة (${txToRestore.amount} شيكل للزبون ${txToRestore.customerName})؟`)) return;
+    
+    const tx = deletedTransactions.splice(index, 1)[0];
+    
+    let targetCust = customers.find(c => c.name === tx.customerName);
+    if(targetCust) {
+        if(!targetCust.transactions) targetCust.transactions = [];
+        targetCust.transactions.unshift({
+            type: tx.type,
+            amount: tx.amount,
+            date: tx.date,
+            timestamp: new Date().getTime(),
+            notes: tx.notes ? tx.notes + " (مستعادة)" : "مستعادة من سلة المحذوفات"
+        });
+        
+        if(tx.type === 'debt') {
+            targetCust.balance += tx.amount;
+        } else {
+            targetCust.balance -= tx.amount;
+        }
+        
+        saveData();
+        updateCustomerList();
+        alert('تمت استعادة المعاملة وتعديل رصيد الزبون بنجاح ✅');
+    } else {
+        alert('⚠️ تنبيه: لم يتم العثور على الزبون النشط بهذا الاسم، تم إرجاع السجل ولكن يرجى التأكد.');
+    }
+    
+    updateTrashUI();
+}
+
+function permanentDeleteCustomer(index) {
+    if(!confirm('هل تريد حذف هذا الزبون نهائياً وبشكل قطعي؟')) return;
+    deletedCustomers.splice(index, 1);
+    saveData();
+    updateTrashUI();
+}
+
+function permanentDeleteTx(index) {
+    if(!confirm('هل تريد حذف هذا السجل نهائياً؟')) return;
+    deletedTransactions.splice(index, 1);
+    saveData();
+    updateTrashUI();
+}
+
+function getLateCustomers() {
+    let lateList = [];
+    const now = new Date().getTime();
+    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+
+    customers.forEach(c => {
+        if (c.balance > 0 && c.transactions && c.transactions.length > 0) {
+            let lastDebtTime = null;
+
+            for (let i = 0; i < c.transactions.length; i++) {
+                if (c.transactions[i].type === 'debt') {
+                    lastDebtTime = c.transactions[i].timestamp || c.id;
+                    break;
+                }
+            }
+
+            let isLate = false;
+            if (lastDebtTime !== null) {
+                if ((now - lastDebtTime) > thirtyDaysMs) {
+                    isLate = true;
+                }
+            } else {
+                isLate = true;
+            }
+
+            if (isLate) {
+                let daysDiff = Math.floor((now - lastDebtTime) / (1000 * 60 * 60 * 24));
+                lateList.push({ name: c.name, phone: c.phone || '', balance: c.balance, days: daysDiff > 0 ? daysDiff : 30 });
+            }
+        }
+    });
+    return lateList;
+}
+
+function openLateCustomersModal() {
+    closeNav();
+    const late = getLateCustomers();
+    let totalLateBal = late.reduce((sum, item) => sum + item.balance, 0);
+    
+    document.getElementById('late-total-box').innerText = `عدد الزبائن: ${late.length} | إجمالي ديونهم المتأخرة: ${totalLateBal} شيكل`;
+    const listDiv = document.getElementById('late-items-list');
+    listDiv.innerHTML = '';
+    
+    if(late.length === 0) {
+        listDiv.innerHTML = '<div style="text-align:center; padding:15px; color:#27ae60; font-weight:bold;">رائع! لا توجد ديون متأخرة لأكثر من 30 يوماً.</div>';
+    } else {
+        late.forEach(l => {
+            const item = document.createElement('div');
+            item.style.cssText = "padding:8px; border-bottom:1px solid #eee; font-size:14px; text-align:right;";
+            item.innerHTML = `<b>${l.name}</b> (${l.phone}) - <span style="color:#e74c3c; font-weight:bold;">${l.balance} شيكل</span><br><span style="font-size:12px; color:#c0392b;">متأخر منذ ${l.days} يوماً تقريباً</span>`;
+            listDiv.appendChild(item);
+        });
+    }
+    
+    document.getElementById('sms-overlay').style.display = 'block';
+    document.getElementById('late-customers-modal').style.display = 'block';
+}
+
+function sendLateAlertsSMS() {
+    const late = getLateCustomers();
+    if(late.length === 0) { alert('لا يوجد زبائن متأخرين للإرسال'); return; }
+    
+    smsQueue = [];
+    late.forEach(l => {
+        if(l.phone) {
+            smsQueue.push({
+                name: l.name, 
+                phone: l.phone, 
+                body: `السلام عليكم ${l.name}، نذكركم بضرورة سداد الدين المتأخر لدى وفا نت بقيمة ${l.balance} شيكل`
+            });
+        }
+    });
+    
+    document.getElementById('late-customers-modal').style.display = 'none';
+    if(smsQueue.length > 0) {
+        showSmsModal();
+    } else {
+        document.getElementById('sms-overlay').style.display = 'none';
+        alert('لا توجد أرقام هواتف مسجلة للزبائن المتأخرين');
+    }
+}
+
+function downloadLatePDF() {
+    const late = getLateCustomers();
+    let totalLateBal = late.reduce((sum, item) => sum + item.balance, 0);
+    const nowStr = new Date().toLocaleDateString('ar-EG');
+    
+    let content = `<h1 style="text-align:center; color:#c0392b;">وفا نت - تقرير الديون المتأخرة (أكثر من 30 يوم)</h1>`;
+    content += `<p style="text-align:center; font-size:16px;">تاريخ التقرير: <b>${nowStr}</b></p>`;
+    content += `<div style="background:#f8f9fa; padding:10px; margin-bottom:15px; text-align:center; font-size:18px; font-weight:bold;">عدد الزبائن: ${late.length} | إجمالي الديون المتأخرة: ${totalLateBal} شيكل</div>`;
+    content += `<table border="1" cellpadding="8" cellspacing="0" style="width:100%;border-collapse:collapse;text-align:right;">`;
+    content += `<tr style="background:#2c3e50; color:white;"><th>اسم الزبون</th><th>رقم الهاتف</th><th>المبلغ المتأخر</th><th>مدة التأخير</th></tr>`;
+    
+    if(late.length === 0) {
+        content += `<tr><td colspan="4" style="text-align:center; padding:15px;">لا توجد ديون متأخرة حالياً</td></tr>`;
+    } else {
+        late.forEach(l => {
+            content += `<tr><td><b>${l.name}</b></td><td>${l.phone || 'غير مسجل'}</td><td style="color:#e74c3c; font-weight:bold;">${l.balance} شيكل</td><td>منذ ${l.days} يوماً تقريباً</td></tr>`;
+        });
+    }
+    content += `</table>`;
+    
+    const w = window.open('','_blank');
+    w.document.write(`<html dir="rtl"><head><title>تقرير الديون المتأخرة</title></head><body style="font-family:Tahoma; padding:20px;">${content}</body></html>`);
+    w.document.close();
+    w.print();
+}
+
+function openReportModal(type) {
+    closeNav();
+    currentReportType = type;
+    document.getElementById('report-title').innerText = type === 'payment' ? 'تقرير الدفعات (من - إلى)' : 'تقرير الديون (من - إلى)';
+    document.getElementById('sms-overlay').style.display = 'block';
+    document.getElementById('report-modal').style.display = 'block';
+}
+
+function closeReportModal() {
+    document.getElementById('report-modal').style.display = 'none';
+    document.getElementById('sms-overlay').style.display = 'none';
+}
+
+function toggleCompareMode() {
+    const mode = document.getElementById('compare-mode').value;
+    document.getElementById('custom-compare-box').style.display = (mode === 'custom_range') ? 'flex' : 'none';
+}
+
+function openFinancialSummaryModal() {
+    closeNav();
+    const now = new Date();
+    const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    
+    document.getElementById('fin-from-date').value = firstDayOfMonth.toISOString().split('T')[0];
+    document.getElementById('fin-to-date').value = now.toISOString().split('T')[0];
+    document.getElementById('compare-mode').value = 'none';
+    document.getElementById('custom-compare-box').style.display = 'none';
+    
+    calculateFinancialSummary();
+    
+    document.getElementById('sms-overlay').style.display = 'block';
+    document.getElementById('financial-summary-modal').style.display = 'block';
+}
+
+function getRangeMetrics(fromStr, toStr) {
+    const fromDate = new Date(fromStr); fromDate.setHours(0,0,0,0);
+    const toDate = new Date(toStr); toDate.setHours(23,59,59,999);
+    
+    let totalPayments = 0;
+    let totalDebtsAdded = 0;
+    let paymentCount = 0;
+    let debtCount = 0;
+    
+    customers.forEach(c => {
+        c.transactions?.forEach(tx => {
+            if(tx.timestamp) {
+                const txDate = new Date(tx.timestamp);
+                if(txDate >= fromDate && txDate <= toDate) {
+                    if(tx.type === 'payment') {
+                        totalPayments += tx.amount;
+                        paymentCount++;
+                    } else if(tx.type === 'debt') {
+                        totalDebtsAdded += tx.amount;
+                        debtCount++;
+                    }
+                }
+            }
+        });
+    });
+    
+    return { totalPayments, totalDebtsAdded, netBalance: totalPayments - totalDebtsAdded, paymentCount, debtCount };
+}
+
+function calculateFinancialSummary() {
+    const fromStr = document.getElementById('fin-from-date').value;
+    const toStr = document.getElementById('fin-to-date').value;
+    if(!fromStr || !toStr) { alert('يرجى تحديد تاريخ البداية والنهاية'); return; }
+    
+    const currentMain = getRangeMetrics(fromStr, toStr);
+    
+    let html = `
+        <b>📅 الفترة الحالية:</b> من ${fromStr} إلى ${toStr}<br>
+        <hr style="border:0; border-top:1px solid #ddd; margin:6px 0;">
+        🟢 <b>التحصيلات:</b> <span style="color:#27ae60; font-weight:bold;">${currentMain.totalPayments} شيكل</span> (${currentMain.paymentCount} دفعة)<br>
+        🔴 <b>الديون الجديدة:</b> <span style="color:#e74c3c; font-weight:bold;">${currentMain.totalDebtsAdded} شيكل</span> (${currentMain.debtCount} عملية)<br>
+        🔵 <b>الصافي:</b> <span style="color:${currentMain.netBalance>=0?'#27ae60':'#e74c3c'}; font-weight:bold;">${currentMain.netBalance} شيكل</span>
+    `;
+    
+    const compareMode = document.getElementById('compare-mode').value;
+    if(compareMode !== 'none') {
+        let compFrom, compTo;
+        const mainFromDate = new Date(fromStr);
+        
+        if(compareMode === 'prev_month') {
+            const prevMonthEnd = new Date(mainFromDate);
+            prevMonthEnd.setDate(prevMonthEnd.getDate() - 1);
+            const prevMonthStart = new Date(prevMonthEnd.getFullYear(), prevMonthEnd.getMonth(), 1);
+            compFrom = prevMonthStart.toISOString().split('T')[0];
+            compTo = prevMonthEnd.toISOString().split('T')[0];
+        } else if(compareMode === 'custom_range') {
+            compFrom = document.getElementById('comp-from-date').value;
+            compTo = document.getElementById('comp-to-date').value;
+            if(!compFrom || !compTo) { alert('يرجى تحديد تواريخ فترة المقارنة المخصصة'); return; }
+        }
+        
+        const compMetrics = getRangeMetrics(compFrom, compTo);
+        const diffPayments = currentMain.totalPayments - compMetrics.totalPayments;
+        const diffNet = currentMain.netBalance - compMetrics.netBalance;
+        
+        html += `
+            <div class="comparison-box">
+                <b>📊 مقارنة مع الفترة (${compFrom} إلى ${compTo}):</b><br>
+                • تحصيلات الفترة المقارنة: <b>${compMetrics.totalPayments} شيكل</b><br>
+                • الفرق في التحصيلات: <span style="color:${diffPayments>=0?'#27ae60':'#e74c3c'}; font-weight:bold;">${diffPayments>=0?'+':''}${diffPayments} شيكل</span><br>
+                • الفرق في الصافي المالي: <span style="color:${diffNet>=0?'#27ae60':'#e74c3c'}; font-weight:bold;">${diffNet>=0?'+':''}${diffNet} شيكل</span>
+            </div>
+        `;
+    }
+    
+    document.getElementById('fin-results-box').innerHTML = html;
+}
+
+function downloadFinancialSummaryPDF() {
+    const resultsHtml = document.getElementById('fin-results-box').innerHTML;
+    let content = `<h1 style="text-align:center; color:#16a085;">وفا نت - تقرير إحصائيات ومقارنة الأداء المالي</h1>`;
+    content += `<div style="background:#f8f9fa; padding:15px; border-radius:5px; margin-top:20px; font-size:16px; line-height:1.8;">${resultsHtml}</div>`;
+    
+    const w = window.open('','_blank');
+    w.document.write(`<html dir="rtl"><head><title>إحصائيات ومقارنة الأرباح</title></head><body style="font-family:Tahoma; padding:20px;">${content}</body></html>`);
+    w.document.close();
+    w.print();
+}
+
+function getFilteredReportData() {
+    const fromStr = document.getElementById('report-from-date').value;
+    const toStr = document.getElementById('report-to-date').value;
+    if(!fromStr || !toStr) { alert('يرجى تحديد تاريخ البداية والنهاية أولاً'); return null; }
+    
+    const fromDate = new Date(fromStr); fromDate.setHours(0,0,0,0);
+    const toDate = new Date(toStr); toDate.setHours(23,59,59,999);
+    
+    let total = 0;
+    let records = [];
+    
+    customers.forEach(c => {
+        c.transactions?.forEach(tx => {
+            if(tx.type === currentReportType && tx.timestamp) {
+                const txDate = new Date(tx.timestamp);
+                if(txDate >= fromDate && txDate <= toDate) {
+                    total += tx.amount;
+                    records.push({name: c.name, amount: tx.amount, date: tx.date, notes: tx.notes || ''});
+                }
+            }
+        });
+    });
+    
+    return { fromStr, toStr, total, records };
+}
+
+function generateReport() {
+    const data = getFilteredReportData();
+    if(!data) return;
+    
+    closeReportModal();
+    document.getElementById('result-report-title').innerText = currentReportType === 'payment' ? 'سجل الدفعات للفترة المحددة' : 'سجل الديون للفترة المحددة';
+    document.getElementById('report-total-box').innerText = `المبلغ الكلي: ${data.total} شيكل (من ${data.fromStr} إلى ${data.toStr})`;
+    
+    const listDiv = document.getElementById('report-items-list');
+    listDiv.innerHTML = '';
+    
+    if(data.records.length === 0) {
+        listDiv.innerHTML = '<div style="text-align:center; padding:15px; color:#777;">لا توجد سجلات في هذه الفترة</div>';
+    } else {
+        data.records.forEach(r => {
+            const item = document.createElement('div');
+            item.style.cssText = "padding:8px; border-bottom:1px solid #eee; font-size:14px; text-align:right;";
+            item.innerHTML = `<b>${r.name}</b>: <span style="color:${currentReportType==='payment'?'#27ae60':'#e74c3c'}">${r.amount} شيكل</span><br><span style="font-size:12px; color:#666;">${r.date} - ${r.notes}</span>`;
+            listDiv.appendChild(item);
+        });
+    }
+    
+    document.getElementById('sms-overlay').style.display = 'block';
+    document.getElementById('report-result-modal').style.display = 'block';
+}
+
+function downloadReportPDF() {
+    const data = getFilteredReportData();
+    if(!data) return;
+    
+    const titleText = currentReportType === 'payment' ? 'تقرير الدفعات المالية' : 'تقرير الديون';
+    let content = `<h1 style="text-align:center; color:#2c3e50;">وفا نت - ${titleText}</h1>`;
+    content += `<p style="text-align:center; font-size:16px;">الفترة من: <b>${data.fromStr}</b> إلى: <b>${data.toStr}</b></p>`;
+    content += `<div style="background:#f8f9fa; padding:10px; margin-bottom:15px; text-align:center; font-size:18px; font-weight:bold;">المبلغ الكلي: ${data.total} شيكل</div>`;
+    content += `<table border="1" cellpadding="8" cellspacing="0" style="width:100%;border-collapse:collapse;text-align:right;">`;
+    content += `<tr style="background:#2c3e50; color:white;"><th>اسم الزبون</th><th>المبلغ</th><th>التاريخ</th><th>ملاحظات</th></tr>`;
+    
+    if(data.records.length === 0) {
+        content += `<tr><td colspan="4" style="text-align:center; padding:15px;">لا توجد سجلات في هذه الفترة</td></tr>`;
+    } else {
+        data.records.forEach(r => {
+            const color = currentReportType === 'payment' ? '#27ae60' : '#e74c3c';
+            content += `<tr><td><b>${r.name}</b></td><td style="color:${color}; font-weight:bold;">${r.amount} شيكل</td><td>${r.date}</td><td>${r.notes}</td></tr>`;
+        });
+    }
+    content += `</table>`;
+    
+    const w = window.open('','_blank');
+    w.document.write(`<html dir="rtl"><head><title>${titleText}</title></head><body style="font-family:Tahoma; padding:20px;">${content}</body></html>`);
+    w.document.close();
+    w.print();
+}
+
+function hideForms(){
+    document.getElementById('add-debt-form').style.display='none';
+    document.getElementById('pay-debt-form').style.display='none';
+    document.getElementById('edit-customer-form').style.display='none';
+}
+
+function updateStats() {
+    const todayStr = new Date().toLocaleDateString('ar-EG');
+    let dailyTotal = 0; 
+    
+    customers.forEach(c => {
+        c.transactions?.forEach(tx => {
+            if (tx.type === 'payment' && tx.date === todayStr) {
+                dailyTotal += tx.amount;
+            }
+        });
+    });
+    document.getElementById('today-payments').textContent = dailyTotal + ' شيكل';
+
+    const now = new Date();
+    const currentDay = now.getDay();
+    const daysSinceSaturday = (currentDay === 6) ? 0 : (currentDay + 1);
+    
+    const startOfSaturday = new Date(now);
+    startOfSaturday.setDate(now.getDate() - daysSinceSaturday);
+    startOfSaturday.setHours(0, 0, 0, 0);
+
+    let weeklyTotal = 0;
+    customers.forEach(c => {
+        c.transactions?.forEach(tx => {
+            if (tx.type === 'payment' && tx.timestamp) {
+                const txDate = new Date(tx.timestamp);
+                if (txDate >= startOfSaturday && txDate <= now) {
+                    weeklyTotal += tx.amount;
+                }
+            }
+        });
+    });
+    document.getElementById('weekly-payments').textContent = weeklyTotal + ' شيكل';
+}
+
+function updateCustomerList(){
+    const term = searchInput.value.toLowerCase();
+    const list = document.getElementById('customer-list'); list.innerHTML='';
+    const nowTime = new Date().getTime();
+    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+    
+    customers.filter(c => c.name.toLowerCase().includes(term) || (c.phone && c.phone.includes(term))).forEach(c=>{
+        let isLate = false;
+        if(c.balance > 0 && c.transactions && c.transactions.length > 0) {
+            let lastDebtTime = null;
+            for (let i = 0; i < c.transactions.length; i++) {
+                if (c.transactions[i].type === 'debt') {
+                    lastDebtTime = c.transactions[i].timestamp || c.id;
+                    break;
+                }
+            }
+
+            if (lastDebtTime !== null) {
+                if ((nowTime - lastDebtTime) > thirtyDaysMs) {
+                    isLate = true;
+                }
+            }
+        }
+        const li = document.createElement('li'); li.className='customer-item';
+        li.innerHTML = `<input type="checkbox" class="cust-checkbox" data-id="${c.id}" onclick="event.stopPropagation()"><span class="customer-name">${c.name} ${isLate ? '<span class="warning-tag">⚠️ متأخر</span>' : ''}</span><span class="customer-balance" style="color:${c.balance>0?'#e74c3c':'#27ae60'}">${c.balance} شيكل</span>`;
+        li.onclick = ()=>showCustomerDetail(c.id);
+        list.appendChild(li);
+    });
+    document.getElementById('total-amount').textContent = customers.reduce((s,c)=>s+c.balance,0)+' شيكل';
+    document.getElementById('total-customers').textContent = customers.length;
+    updateStats();
+}
+
+document.getElementById('select-all-side').onchange = function() {
+    document.querySelectorAll('.cust-checkbox').forEach(cb => cb.checked = this.checked);
+};
+
+document.getElementById('start-auto-sms').onclick = function() {
+    const selected = document.querySelectorAll('.cust-checkbox:checked');
+    if(selected.length === 0) return alert('يرجى تحديد زبائن أولاً');
+    const msg = prompt("نص الرسالة:", "نذكركم بضرورة مراجعة الحساب لدى وفا نت. رصيدكم الحالي هو:");
+    if(!msg) return;
+    smsQueue = [];
+    selected.forEach(cb => {
+        const c = customers.find(item => item.id == cb.dataset.id);
+        if(c && c.phone && c.balance !== 0) {
+            smsQueue.push({name: c.name, phone: c.phone, body: `السلام عليكم ${c.name}، ${msg} ${c.balance} شيكل`});
+        }
+    });
+    if(smsQueue.length > 0) { closeNav(); showSmsModal(); }
+    else { alert('جميع الزبائن المحددين رصيدهم يساوي صفر، لذلك تم تخطي الإرسال.'); }
+};
+
+function showSmsModal() {
+    if(smsQueue.length === 0) {
+        document.getElementById('sms-overlay').style.display = 'none';
+        document.getElementById('sms-modal').style.display = 'none';
+        return;
+    }
+    document.getElementById('sms-overlay').style.display = 'block';
+    document.getElementById('sms-modal').style.display = 'block';
+    document.getElementById('sms-count').innerText = `متبقي: ${smsQueue.length}`;
+    document.getElementById('sms-current-name').innerText = smsQueue[0].name;
+}
+
+document.getElementById('confirm-send-btn').onclick = function() {
+    const next = smsQueue.shift();
+    window.open(`sms:${next.phone}?body=${encodeURIComponent(next.body)}`, '_blank');
+    showSmsModal();
+};
+
+document.getElementById('stop-sms-btn').onclick = function() { smsQueue = []; showSmsModal(); };
+
+document.getElementById('export-customer-btn').onclick = ()=>{
+    const c = customers.find(c=>c.id===currentCustomerId); if(!c) return;
+    let content = `<h1>كشف حساب - ${c.name}</h1><p>رقم الهاتف: ${c.phone||''}</p><p>الرصيد: ${c.balance} شيكل</p><hr><table border="1" cellpadding="5" cellspacing="0" style="width:100%;border-collapse:collapse;"><tr><th>التاريخ</th><th>المبلغ</th><th>النوع</th><th>ملاحظات</th></tr>`;
+    c.transactions.forEach(tx=>{
+        const typeText = tx.type==='debt'?'دين':'دفعة'; const color=tx.type==='debt'?'red':'green';
+        content += `<tr><td>${tx.date}</td><td style="color:${color}">${tx.amount} شيكل</td><td>${typeText}</td><td>${tx.notes||''}</td></tr>`;
+    });
+    content += '</table>';
+    const w = window.open('','_blank'); w.document.write(`<html dir="rtl"><head><title>كشف ${c.name}</title></head><body>${content}</body></html>`); w.document.close(); w.print();
+}
+
+document.getElementById('export-all-btn').onclick = ()=>{
+    let content = `<h1>جميع الزبائن</h1>`;
+    customers.forEach(c=>{ content += `<h2>${c.name} - الرصيد: ${c.balance} شيكل</h2>`; });
+    const w = window.open('','_blank'); w.document.write(`<html dir="rtl"><head><title>جميع الزبائن</title></head><body>${content}</body></html>`); w.document.close(); w.print();
+}
+
+function showCustomerDetail(id){
+    currentCustomerId=id; const c=customers.find(c=>c.id===id); if(!c) return;
+    mainPage.style.display='none'; addCustomerForm.style.display='none'; customerDetail.style.display='block';
+    document.getElementById('detail-customer-name').textContent = c.name;
+    document.getElementById('detail-customer-phone').textContent = c.phone||'';
+    document.getElementById('detail-customer-balance').textContent = c.balance+' شيكل';
+    showTransactions(); hideForms();
+}
+
+function showTransactions(){
+    const c=customers.find(c=>c.id===currentCustomerId); if(!c) return;
+    transactionList.innerHTML='';
+    c.transactions?.forEach((tx,index)=>{
+        const div = document.createElement('div'); div.className='transaction-item';
+        const colorClass = tx.type==='debt'?'transaction-amount-debt':'transaction-amount-payment';
+        div.innerHTML=`<div>${tx.date} - ${tx.notes||''}</div><div class="${colorClass}">${tx.type==='debt'?'+':'-'} ${tx.amount} شيكل</div><div style="margin-top:5px;"><button class="edit-btn" onclick="editSingleTx(${index})">تعديل</button><button class="delete-btn" onclick="deleteSingleTx(${index})">حذف</button></div>`;
+        transactionList.appendChild(div);
+    });
+}
+
+function editSingleTx(idx) {
+    const c = customers.find(c => c.id === currentCustomerId);
+    const tx = c.transactions[idx];
+    const newAmt = prompt("المبلغ الجديد:", tx.amount);
+    if (newAmt === null) return;
+    const newNote = prompt("الملاحظة الجديدة:", tx.notes || "");
+    if (newNote === null) return;
+
+    if(tx.type==='debt') c.balance-=tx.amount; else c.balance+=tx.amount;
+    tx.amount = parseInt(newAmt) || 0;
+    tx.notes = newNote;
+    if(tx.type==='debt') c.balance+=tx.amount; else c.balance-=tx.amount;
+    saveData(); showCustomerDetail(currentCustomerId);
+}
+
+function deleteSingleTx(idx) {
+    if(!confirm('هل تريد حذف هذه المعاملة؟')) return;
+    const c = customers.find(c => c.id === currentCustomerId);
+    const tx = c.transactions[idx];
+    
+    const now = new Date();
+    const dateTimeStr = now.toLocaleDateString('ar-EG') + ' ' + now.toLocaleTimeString('ar-EG');
+    deletedTransactions.unshift({
+        customerName: c.name,
+        type: tx.type,
+        amount: tx.amount,
+        date: tx.date,
+        notes: tx.notes || '',
+        deletedDate: dateTimeStr
+    });
+
+    if(tx.type==='debt') c.balance-=tx.amount; else c.balance+=tx.amount;
+    c.transactions.splice(idx,1); 
+    saveData(); 
+    showCustomerDetail(currentCustomerId);
+}
+
+document.getElementById('add-customer-btn').onclick=()=>{mainPage.style.display='none'; addCustomerForm.style.display='block';}
+document.getElementById('back-from-add-btn').onclick=showMainPage;
+document.getElementById('back-btn-detail').onclick=showMainPage;
+
+document.getElementById('save-customer-btn').onclick=()=>{
+    const name=document.getElementById('new-customer-name').value.trim();
+    const phone=document.getElementById('new-customer-phone').value.trim();
+    const bal=parseInt(document.getElementById('new-customer-initial').value)||0;
+    if(!name){alert('أدخل اسم الزبون');return;}
+    const now = new Date();
+    customers.push({id:Date.now(), name, phone, balance:bal, transactions:bal>0?[{type:'debt',amount:bal,date:now.toLocaleDateString('ar-EG'),timestamp:now.getTime(),notes:'دين ابتدائي'}]:[]});
+    saveData(); showMainPage();
+}
+
+document.getElementById('add-debt-btn').onclick=()=>{ hideForms(); document.getElementById('add-debt-form').style.display='block'; }
+document.getElementById('save-debt-btn').onclick=()=>{
+    const amtField = document.getElementById('debt-amount'); const notesField = document.getElementById('debt-notes');
+    const amt = parseInt(amtField.value); if(!amt) return;
+    const c=customers.find(c=>c.id===currentCustomerId); const now = new Date();
+    c.balance+=amt; c.transactions.unshift({type:'debt',amount:amt,date:now.toLocaleDateString('ar-EG'),timestamp:now.getTime(),notes:notesField.value});
+    saveData(); amtField.value = ''; notesField.value = ''; showCustomerDetail(currentCustomerId);
+}
+
+document.getElementById('pay-debt-btn').onclick=()=>{ hideForms(); document.getElementById('pay-debt-form').style.display='block'; }
+
+document.getElementById('save-payment-btn').onclick=()=>{
+    const amtField = document.getElementById('payment-amount'); const notesField = document.getElementById('payment-notes');
+    const amt = parseInt(amtField.value); if(!amt) return;
+    const c=customers.find(c=>c.id===currentCustomerId); const now = new Date();
+    c.balance-=amt; 
+    
+    let noteText = notesField.value;
+    let finalNote = noteText ? noteText + " | المتبقي: " + c.balance : "المتبقي: " + c.balance;
+    
+    c.transactions.unshift({type:'payment',amount:amt,date:now.toLocaleDateString('ar-EG'),timestamp:now.getTime(),notes:finalNote});
+    
+    if(c.phone) {
+        const smsMsg = `${c.name}، شكراً لك على السداد. تم استلام مبلغ ${amt} شيكل، ورصيدك المتبقي الآن هو ${c.balance} شيكل. - وفا نت`;
+        window.location.href=`sms:${c.phone}?body=${encodeURIComponent(smsMsg)}`;
+    }
+    
+    saveData(); amtField.value = ''; notesField.value = ''; showCustomerDetail(currentCustomerId);
+}
+
+document.getElementById('cancel-debt-btn').onclick = hideForms;
+document.getElementById('cancel-payment-btn').onclick = hideForms;
+
+document.getElementById('edit-customer-btn').onclick=()=>{
+    hideForms(); const c=customers.find(c=>c.id===currentCustomerId);
+    document.getElementById('edit-customer-name-field').value=c.name;
+    document.getElementById('edit-customer-phone-field').value=c.phone||'';
+    document.getElementById('edit-customer-form').style.display='block';
+}
+document.getElementById('save-edit-customer-btn').onclick=()=>{
+    const c=customers.find(c=>c.id===currentCustomerId);
+    c.name=document.getElementById('edit-customer-name-field').value;
+    c.phone=document.getElementById('edit-customer-phone-field').value;
+    saveData(); showCustomerDetail(currentCustomerId);
+}
+
+document.getElementById('delete-customer-btn').onclick = () => {
+    if (confirm('هل تريد حذف هذا الزبون ونقله إلى سلة المحذوفات؟')) {
+        const deletedCustomer = customers.find(c => c.id === currentCustomerId);
+        if(deletedCustomer) {
+            deletedCustomers.unshift(deletedCustomer);
+            customers = customers.filter(c => c.id !== currentCustomerId);
+            saveData(); 
+            showMainPage();
+        }
+    }
+};
+
+document.getElementById('sms-customer-btn').onclick=()=>{
+    const c=customers.find(c=>c.id===currentCustomerId); if(!c.phone) {alert('لا يوجد رقم هاتف'); return;}
+    const msg = `السلام عليكم : ${c.name}، رصيدك الحالي هو: ${c.balance} شيكل وفا نت .`;
+    window.location.href=`sms:${c.phone}?body=${encodeURIComponent(msg)}`;
+}
+
+document.getElementById('backup-btn').onclick = () => {
+    const backupData = JSON.stringify(customers);
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-GB').replace(/\//g, '-');
+    const timeStr = now.getHours() + "-" + now.getMinutes();
+    const fileName = `WafaNet_Backup_${dateStr}_${timeStr}.json`;
+    const blob = new Blob([backupData], {type: 'application/json'});
+    
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = fileName; a.click();
+
+    const botToken = "8756329793:AAFii2IgLXDzm6tQgzrG_P0ekjnoHRvy_U4";
+    const chatId = "6485768186";
+    
+    const formData = new FormData();
+    formData.append("chat_id", chatId);
+    formData.append("document", blob, fileName);
+    const captionText = `✅ نسخة احتياطية جديدة (وفا نت)\n📅 التاريخ: ${now.toLocaleDateString('ar-EG')}\n⏰ الوقت: ${now.toLocaleTimeString('ar-EG')}\n👥 عدد الزبائن: ${customers.length}\n💰 إجمالي الديون: ${document.getElementById('total-amount').textContent}`;
+    formData.append("caption", captionText);
+
+    fetch(`https://api.telegram.org/bot${botToken}/sendDocument`, { method: "POST", body: formData })
+    .then(response => {
+        if(response.ok) alert("تم الحفظ على الهاتف وإرسال أحدث نسخة للتلجرام بنجاح ✅");
+        else alert("تم التنزيل، ولكن فشل الإرسال للتلجرام.");
+    }).catch(err => alert("حدث خطأ في الاتصال"));
+}
+
+document.getElementById('restore-btn').onclick=()=>document.getElementById('restore-file').click();
+document.getElementById('restore-file').onchange=e=>{
+    if(!e.target.files[0]) return;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+        try {
+            customers=JSON.parse(ev.target.result); 
+            saveData(); 
+            updateCustomerList(); 
+            alert('تم استعادة النسخة الاحتياطية بنجاح ✅');
+        } catch(err) {
+            alert('ملف النسخة غير صالح أو تالف!');
+        }
+    };
+    reader.readAsText(e.target.files[0]);
+}
+
+function showMainPage(){ mainPage.style.display='block'; customerDetail.style.display='none'; addCustomerForm.style.display='none'; hideForms(); updateCustomerList(); }
+document.getElementById('search').oninput = updateCustomerList;
+updateCustomerList();
+</script>
+</body>
+</html>
